@@ -1,0 +1,24 @@
+databaseChangeLog:
+  - include:
+      file: db/changelog/changes/001-create-media.sql
+
+  - include:
+      file: db/changelog/changes/002-create-media-upload-session.sql
+
+  - include:
+      file: db/changelog/changes/003-create-media-rendition.sql
+
+  - include:
+      file: db/changelog/changes/004-create-media-manifest.sql
+
+  - include:
+      file: db/changelog/changes/005-create-video-thumbnail.sql
+
+  - include:
+      file: db/changelog/changes/006-create-media-processing-job.sql
+
+  - include:
+      file: db/changelog/changes/007-create-media-indexes.sql
+
+  - include:
+      file: db/changelog/changes/008-update-media-processing-job.sql
