@@ -198,15 +198,7 @@ public ImageMediaResponseDTO getReadyImage(UUID mediaId, MediaPurpose mediaPurpo
                     "Media purpose is required."
             );
         }
-
-        if (mediaPurpose != MediaPurpose.COLLECTION_MEDIA
-                && mediaPurpose != MediaPurpose.COLLECTION_THUMBNAIL
-                && mediaPurpose != MediaPurpose.PROFILE_AVATAR) {
-
-            throw new IllegalArgumentException(
-                    "Unsupported image media purpose: " + mediaPurpose
-            );
-        }
+ 
 
         if (originalFilename == null || originalFilename.isBlank()) {
             throw new IllegalArgumentException(
@@ -225,6 +217,14 @@ public ImageMediaResponseDTO getReadyImage(UUID mediaId, MediaPurpose mediaPurpo
                     "Expected file size must be greater than zero."
             );
         }
+
+        if (mediaPurpose != MediaPurpose.COLLECTION_MEDIA
+        && mediaPurpose != MediaPurpose.COLLECTION_THUMBNAIL
+        && mediaPurpose != MediaPurpose.PROFILE_AVATAR
+        && mediaPurpose != MediaPurpose.VIDEO_THUMBNAIL) {
+
+    throw new IllegalArgumentException("Unsupported image media purpose: " + mediaPurpose);
+}
     }
 
     private void validateImageUploadCompletion(Media media, MediaUploadSession uploadSession) {
@@ -324,6 +324,12 @@ public ImageMediaResponseDTO getReadyImage(UUID mediaId, MediaPurpose mediaPurpo
                             + mediaId
                             + "/source."
                             + extension;
+
+            case VIDEO_THUMBNAIL ->
+                "originals/collection/thumbnails/video-thumbnails/"
+                        + mediaId
+                        + "/source."
+                        + extension;
 
             case PROFILE_AVATAR ->
                     "originals/profile/avatars/"
@@ -509,38 +515,55 @@ public Media completeVideoUpload(UUID mediaId, UUID uploadSessionId) {
             uploadSession
     );
 
-    S3ObjectMetadataDTO objectMetadata =
-            s3StorageService.getObjectMetadata(
-                    uploadSession.getStorageKey()
-            );
+    S3ObjectMetadataDTO objectMetadata;
 
-    validateUploadedVideoObject(
-            media,
-            uploadSession,
-            objectMetadata
-    );
+    try {
+        objectMetadata =
+                s3StorageService.getObjectMetadata(
+                        uploadSession.getStorageKey()
+                );
+
+        validateUploadedVideoObject(
+                media,
+                uploadSession,
+                objectMetadata
+        );
+
+    } catch (IllegalStateException e) {
+
+        System.err.println(
+                "Video S3 upload verification failed. mediaId="
+                        + mediaId
+                        + ", uploadSessionId="
+                        + uploadSessionId
+                        + ", error="
+                        + e.getMessage()
+        );
+
+        mediaService.markS3UploadFailed(
+                mediaId,
+                "S3_UPLOAD_FAILED",
+                e.getMessage()
+        );
+
+        throw e;
+    }
 
     media.setSizeBytes(
             objectMetadata.sizeBytes()
     );
 
     if (objectMetadata.contentType() != null) {
-        media.setMimeType(
-                objectMetadata.contentType()
-        );
+        media.setMimeType(objectMetadata.contentType());
     }
 
     mediaService.updateMedia(media);
 
     mediaService.markUploaded(mediaId);
 
-    mediaUploadSessionService.markCompleted(
-            uploadSessionId
-    );
+    mediaUploadSessionService.markCompleted(uploadSessionId);
 
-    return videoProcessingService.startProcessing(
-            mediaId
-    );
+    return videoProcessingService.startProcessing(mediaId);
 }
 
 private void validateVideoUpload(UUID profileId, String originalFilename,

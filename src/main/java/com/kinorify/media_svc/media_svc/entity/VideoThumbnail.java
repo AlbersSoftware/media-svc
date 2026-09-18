@@ -24,6 +24,9 @@ public class VideoThumbnail {
     @Column(name = "media_id", nullable = false)
     private UUID mediaId;
 
+    @Column(name = "thumbnail_media_id")
+    private UUID thumbnailMediaId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "thumbnail_type", nullable = false, length = 30)
     private VideoThumbnailType thumbnailType;
@@ -43,10 +46,24 @@ public class VideoThumbnail {
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
+    @Column(name = "updated_at", nullable = false)
+    private OffsetDateTime updatedAt;
+
     @PrePersist
     protected void onCreate() {
+        OffsetDateTime now = OffsetDateTime.now();
+
         if (createdAt == null) {
-            createdAt = OffsetDateTime.now();
+            createdAt = now;
         }
+
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = OffsetDateTime.now();
     }
 }

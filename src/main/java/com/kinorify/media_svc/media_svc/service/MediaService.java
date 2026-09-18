@@ -59,4 +59,16 @@ public interface MediaService {
     Media markRetrying(UUID mediaId);
 
     Media markTerminalFailed(UUID mediaId, String failureCode, String failureMessage);
+
+    Media markNoRenditionsNeeded(UUID mediaId);
+
+    Media markSqsFailed(UUID mediaId, String failureCode, String failureMessage);
+
+    Media markRenditionsFailed(UUID mediaId, String failureCode, String failureMessage);
+
+    Media markMediaCallbackFailed(UUID mediaId, String failureCode, String failureMessage);
+
+    Media markS3UploadFailed(UUID mediaId, String failureCode, String failureMessage);
+
+    Media markDeleted(UUID mediaId);
 }

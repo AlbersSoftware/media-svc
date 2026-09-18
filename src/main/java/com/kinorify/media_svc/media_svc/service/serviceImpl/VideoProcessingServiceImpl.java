@@ -31,6 +31,9 @@ import java.time.OffsetDateTime;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import com.kinorify.media_svc.media_svc.dto.response.MediaProcessingJobResponseDTO;
+import com.kinorify.media_svc.media_svc.dto.response.VideoProcessingStatusResponseDTO;
+
 
 @Slf4j
 @Service
@@ -137,11 +140,7 @@ public class VideoProcessingServiceImpl implements VideoProcessingService {
             );
 
             Media failedMedia =
-                    mediaService.markFailed(
-                            mediaId,
-                            "VIDEO_QUEUE_DISPATCH_FAILED",
-                            e.getMessage()
-                    );
+            mediaService.markSqsFailed(mediaId, "VIDEO_QUEUE_DISPATCH_FAILED", e.getMessage());
 
             log.error(
                     "Failed to send video processing job to SQS. mediaId={}, processingJobId={}",
@@ -189,11 +188,11 @@ public class VideoProcessingServiceImpl implements VideoProcessingService {
               );
 
               Media failedMedia =
-                      mediaService.markFailed(
-                              mediaId,
-                              "VIDEO_PROCESSING_FAILED",
-                              failureMessage
-                      );
+              mediaService.markRenditionsFailed(
+                mediaId,
+                "VIDEO_RENDITIONS_FAILED",
+                failureMessage
+               );
 
               log.error(
                       "Video worker reported processing failure. mediaId={}, processingJobId={}, failureMessage={}",
@@ -204,6 +203,31 @@ public class VideoProcessingServiceImpl implements VideoProcessingService {
 
               return failedMedia;
           }
+
+          //no-renditions branch
+          boolean noRenditionsNeeded =
+          result.renditions() != null
+                && result.renditions().isEmpty()
+                && result.manifests() != null
+                && result.manifests().isEmpty();
+
+            if (noRenditionsNeeded) {
+
+                validateNoRenditionsNeeded(media, processingJob);
+
+                mediaProcessingJobService.markCompleted(processingJobId);
+
+                Media completedMedia = mediaService.markNoRenditionsNeeded(mediaId);
+
+                log.info(
+                        "Video worker processing completed successfully with no renditions needed. Media is now NO_RENDITIONS_NEEDED. mediaId={}, processingJobId={}",
+                        mediaId,
+                        processingJobId
+                );
+
+                return completedMedia;
+            }
+
 
           validateProcessingResult(
                   media,
@@ -249,6 +273,28 @@ public class VideoProcessingServiceImpl implements VideoProcessingService {
 
 
       // helpers for complete processing
+    
+      
+// helper for no renditions
+private void validateNoRenditionsNeeded(Media media, MediaProcessingJob processingJob) {
+
+    if (media.getMediaType() != MediaType.VIDEO) {
+        throw new IllegalStateException("No-renditions-needed result can only be applied to video media.");
+    }
+
+    if (media.getStatus() != MediaStatus.READY) {
+        throw new IllegalStateException("Only ready video media can be marked as requiring no renditions.");
+    }
+
+    if (processingJob.getStatus() != MediaProcessingJobStatus.QUEUED
+            && processingJob.getStatus() != MediaProcessingJobStatus.PROCESSING) {
+        throw new IllegalStateException("No-renditions-needed result can only be applied to a queued or processing job.");
+    }
+
+    if (!processingJob.getMediaId().equals(media.getMediaId())) {
+        throw new IllegalStateException("Processing job does not belong to the requested media.");
+    }
+}
 
 
 private void validateProcessingResult(
@@ -717,4 +763,74 @@ public VideoRenditionsPeekDTO peekRenditions(UUID mediaId) {
                 + processingGeneration
                 + "/";
     }
+
+
+@Override
+@Transactional(readOnly = true)
+public VideoProcessingStatusResponseDTO getProcessingStatus(UUID mediaId) {
+
+    Media media =
+            mediaService.getMediaById(
+                    mediaId
+            );
+
+    if (media.getMediaType() != MediaType.VIDEO) {
+        throw new IllegalStateException(
+                "Media is not a video: " + mediaId
+        );
+    }
+
+    List<MediaProcessingJobResponseDTO> jobs =
+            mediaProcessingJobService
+                    .getProcessingJobsByMediaId(
+                            mediaId
+                    )
+                    .stream()
+                    .map(this::mapProcessingJobResponse)
+                    .toList();
+
+    return VideoProcessingStatusResponseDTO.builder()
+            .mediaId(media.getMediaId())
+            .processingGeneration(
+                    media.getProcessingGeneration()
+            )
+            .status(media.getStatus())
+            .displayName(media.getDisplayName())
+            .jobs(jobs)
+            .failureCode(media.getFailureCode())
+            .failureMessage(media.getFailureMessage())
+            .processingStartedAt(
+                    media.getProcessingStartedAt()
+            )
+            .playableAt(media.getPlayableAt())
+            .readyAt(media.getReadyAt())
+            .failedAt(media.getFailedAt())
+            .build();
+}
+
+private MediaProcessingJobResponseDTO mapProcessingJobResponse(
+        MediaProcessingJob job) {
+
+    return MediaProcessingJobResponseDTO.builder()
+            .mediaProcessingJobId(
+                    job.getMediaProcessingJobId()
+            )
+            .mediaId(job.getMediaId())
+            .processingGeneration(
+                    job.getProcessingGeneration()
+            )
+            .jobType(job.getJobType())
+            .status(job.getStatus())
+            .priority(job.getPriority())
+            .attemptNumber(job.getAttemptNumber())
+            .maxAttempts(job.getMaxAttempts())
+            .failureMessage(job.getFailureMessage())
+            .queuedAt(job.getQueuedAt())
+            .startedAt(job.getStartedAt())
+            .completedAt(job.getCompletedAt())
+            .failedAt(job.getFailedAt())
+            .build();
+}
+
+
 }

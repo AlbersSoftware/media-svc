@@ -9,6 +9,7 @@ import com.kinorify.media_svc.media_svc.service.MediaService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Propagation;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -242,6 +243,74 @@ public class MediaServiceImpl implements MediaService {
     }
 
     @Override
+    public Media markNoRenditionsNeeded(UUID mediaId) {
+        Media media = getMediaById(mediaId);
+
+        if (media.getStatus() != MediaStatus.READY) {
+            throw new IllegalStateException(
+                    "Only ready media can be marked as requiring no renditions."
+            );
+        }
+
+        media.setStatus(MediaStatus.NO_RENDITIONS_NEEDED);
+        media.setFailureCode(null);
+        media.setFailureMessage(null);
+        media.setFailedAt(null);
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
+    public Media markSqsFailed(UUID mediaId, String failureCode, String failureMessage) {
+        Media media = getMediaById(mediaId);
+
+        media.setStatus(MediaStatus.SQS_FAILED);
+        media.setFailureCode(failureCode);
+        media.setFailureMessage(failureMessage);
+        media.setFailedAt(OffsetDateTime.now());
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
+    public Media markRenditionsFailed(UUID mediaId, String failureCode, String failureMessage) {
+        Media media = getMediaById(mediaId);
+
+        media.setStatus(MediaStatus.RENDITIONS_FAILED);
+        media.setFailureCode(failureCode);
+        media.setFailureMessage(failureMessage);
+        media.setFailedAt(OffsetDateTime.now());
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
+    public Media markMediaCallbackFailed(UUID mediaId, String failureCode, String failureMessage) {
+        Media media = getMediaById(mediaId);
+
+        media.setStatus(MediaStatus.MEDIA_CALLBACK_FAILED);
+        media.setFailureCode(failureCode);
+        media.setFailureMessage(failureMessage);
+        media.setFailedAt(OffsetDateTime.now());
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public Media markS3UploadFailed(UUID mediaId, String failureCode, String failureMessage) {
+
+        Media media = getMediaById(mediaId);
+
+        media.setStatus(MediaStatus.S3_UPLOAD_FAILED);
+        media.setFailureCode(failureCode);
+        media.setFailureMessage(failureMessage);
+        media.setFailedAt(OffsetDateTime.now());
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
     public Media markRetrying(UUID mediaId) {
         Media media = getMediaById(mediaId);
 
@@ -263,6 +332,15 @@ public class MediaServiceImpl implements MediaService {
         media.setFailureCode(failureCode);
         media.setFailureMessage(failureMessage);
         media.setFailedAt(OffsetDateTime.now());
+
+        return mediaRepository.save(media);
+    }
+
+    @Override
+    public Media markDeleted(UUID mediaId) {
+        Media media = getMediaById(mediaId);
+
+        media.setStatus(MediaStatus.DELETED);
 
         return mediaRepository.save(media);
     }

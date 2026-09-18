@@ -20,6 +20,8 @@ public class VideoProcessingStatusResponseDTO {
 
     private MediaStatus status;
 
+    private String displayName;
+
     private List<MediaProcessingJobResponseDTO> jobs;
 
     private String failureCode;

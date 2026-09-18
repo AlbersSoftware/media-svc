@@ -1,5 +1,6 @@
 package com.kinorify.media_svc.media_svc.service;
 
+import com.kinorify.media_svc.media_svc.dto.response.MediaManifestResponseDTO;
 import com.kinorify.media_svc.media_svc.entity.MediaManifest;
 
 import java.util.List;
@@ -12,6 +13,8 @@ public interface MediaManifestService {
     MediaManifest getManifestById(UUID manifestId);
 
     List<MediaManifest> getManifestsByMediaId(UUID mediaId);
+
+    List<MediaManifestResponseDTO> getManifestResponsesByMediaId(UUID mediaId);
 
     MediaManifest updateManifest(MediaManifest manifest);
 

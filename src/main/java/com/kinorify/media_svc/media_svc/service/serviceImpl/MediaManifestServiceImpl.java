@@ -1,10 +1,12 @@
 package com.kinorify.media_svc.media_svc.service.serviceImpl;
 
+import com.kinorify.media_svc.media_svc.dto.response.MediaManifestResponseDTO;
 import com.kinorify.media_svc.media_svc.entity.MediaManifest;
 import com.kinorify.media_svc.media_svc.enums.MediaManifestStatus;
 import com.kinorify.media_svc.media_svc.repository.MediaManifestRepository;
 import com.kinorify.media_svc.media_svc.service.MediaManifestService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,9 @@ import java.util.UUID;
 public class MediaManifestServiceImpl implements MediaManifestService {
 
     private final MediaManifestRepository mediaManifestRepository;
+
+    @Value("${aws.cloudfront.domain}")
+    private String cloudFrontDomain;
 
     @Override
     public MediaManifest createManifest(MediaManifest manifest) {
@@ -36,6 +41,18 @@ public class MediaManifestServiceImpl implements MediaManifestService {
     @Transactional(readOnly = true)
     public List<MediaManifest> getManifestsByMediaId(UUID mediaId) {
         return mediaManifestRepository.findManifestsByMediaId(mediaId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<MediaManifestResponseDTO> getManifestResponsesByMediaId(
+            UUID mediaId) {
+
+        return mediaManifestRepository
+                .findManifestsByMediaId(mediaId)
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     @Override
@@ -73,5 +90,33 @@ public class MediaManifestServiceImpl implements MediaManifestService {
         manifest.setStatus(MediaManifestStatus.FAILED);
 
         return mediaManifestRepository.save(manifest);
+    }
+
+    private MediaManifestResponseDTO mapToResponse(MediaManifest manifest) {
+
+        String manifestUrl =
+                "https://"
+                        + cloudFrontDomain
+                        + "/"
+                        + manifest.getStorageKey();
+
+        return MediaManifestResponseDTO.builder()
+                .mediaManifestId(
+                        manifest.getMediaManifestId()
+                )
+                .mediaId(manifest.getMediaId())
+                .processingGeneration(
+                        manifest.getProcessingGeneration()
+                )
+                .manifestType(
+                        manifest.getManifestType()
+                )
+                .status(manifest.getStatus())
+                .version(manifest.getVersion())
+                .manifestUrl(manifestUrl)
+                .manifestUrlExpiresAt(null)
+                .createdAt(manifest.getCreatedAt())
+                .updatedAt(manifest.getUpdatedAt())
+                .build();
     }
 }
